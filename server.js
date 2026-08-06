@@ -3,6 +3,7 @@ const axios = require('axios');
 const app = express();
 app.use(express.json());
 
+// 記憶體快取：儲存來自 Node-RED 的最新數據
 let latestData = {
     kW: 0, V: '--', A: '--', PF: '--',
     rateTitle: '台電營業用',
@@ -15,6 +16,12 @@ let latestData = {
 const SECRET_KEY = "YOUR_SECURE_PASSWORD_123";
 const LINE_ACCESS_TOKEN = "GE0BRQ4PWaFVkHOk0C5qLmcfTOZ+bOL35z8s80pGxLqD8+i4PcJRVVZ4DnZfzlq3IXu15wNPnORb/Jln/KaTJypc/Wk3YZ+0aEJE7+LaBR9Ytkrg83J5uu4dUE8104iRFWIqGpPAtZMz369UEMtxTQdB04t89/1O/w1cDnyilFU=";
 
+// 0. 根目錄路由（專門用來通過 Render 的健康檢查，防止 Timed Out）
+app.get('/', (req, res) => {
+    res.status(200).send('Line Relay Server is running successfully!');
+});
+
+// 1. 接收來自內網 Node-RED 推送資料的 API
 app.post('/api/update', (req, res) => {
     const data = req.body;
     if (!data || data.secret_key !== SECRET_KEY) {
@@ -25,8 +32,9 @@ app.post('/api/update', (req, res) => {
     res.json({ status: 'success', message: 'Data updated successfully' });
 });
 
+// 2. 接收 LINE 官方 Webhook 查詢的 API
 app.post('/webhook', async (req, res) => {
-    res.status(200).end();
+    res.status(200).end(); // 必須第一時間向 LINE 回應 200 OK，避免超時重傳
 
     const events = req.body.events;
     if (!events || events.length === 0) return;
@@ -34,7 +42,8 @@ app.post('/webhook', async (req, res) => {
     for (const event of events) {
         if (event.type === 'message' && event.message.type === 'text') {
             const replyToken = event.replyToken;
-
+            
+            // 組裝要回傳給使用者的 LINE 訊息
             let text = `📊 【廠區即時電力查詢回報】\n` +
                        `---------------------------\n` +
                        `⚡ 即時耗電：${Number(latestData.kW).toFixed(2)} kW\n` +
